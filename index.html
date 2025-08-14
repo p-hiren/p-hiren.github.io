@@ -56,12 +56,13 @@
   .socials a {
     display: inline-block;
     transition: transform 0.2s ease, filter 0.2s ease;
+    color: #fff; /* for inline SVG using currentColor */
   }
   .socials a:hover {
     transform: scale(1.15);
-    filter: drop-shadow(0 0 5px white);
+    filter: drop-shadow(0 0 6px rgba(255,255,255,0.8));
   }
-  .socials img {
+  .socials img, .socials svg {
     width: 40px;
     height: 40px;
   }
@@ -81,7 +82,13 @@
   <div class="socials">
     <a href="https://github.com/p-hiren" target="_blank"><img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/github.svg" alt="GitHub" style="filter: invert(1);"></a>
     <a href="https://orcid.org/0009-0004-2026-6743" target="_blank"><img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/orcid.svg" alt="ORCID" style="filter: invert(1);"></a>
-    <a href="mailto:contact.hiren@icloud.com"><img src="https://www.kindpng.com/picc/m/180-1806803_mail-icon-png-image-apple-mail-icon-png.png" alt="Apple Mail" style="filter: brightness(0) invert(1);"></a>
+    <!-- Inline white mail icon (reliable, always matches color) -->
+    <a href="mailto:contact.hiren@icloud.com" aria-label="Email Hiren" title="Email">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" role="img" aria-hidden="true">
+        <rect x="3" y="5" width="18" height="14" rx="3" ry="3"></rect>
+        <path d="M3.8 7.5l8.2 6 8.2-6"></path>
+      </svg>
+    </a>
   </div>
 </div>
 <script>
