@@ -234,6 +234,27 @@
       const closeBtn = document.getElementById(cfg.close);
       if(!modal) return;
 
+      // Normalize iframe attributes: if an iframe already has a `src` but no `data-src`,
+      // move the src into data-src and remove src so we can lazy-load it reliably later.
+      try{
+        const wrap = modal.querySelector('.embed-wrap');
+        const iframe = wrap ? wrap.querySelector('iframe') : modal.querySelector('iframe');
+        if(iframe){
+          const hasData = iframe.hasAttribute('data-src');
+          const hasSrc = iframe.hasAttribute('src');
+          if(hasSrc && !hasData){
+            const cur = iframe.getAttribute('src');
+            iframe.setAttribute('data-src', cur);
+            iframe.removeAttribute('src');
+            // set initial UI to loading state
+            iframe.style.opacity = '0';
+            if(wrap) wrap.classList.add('loading');
+            const spinner = wrap ? wrap.querySelector('.spinner') : null;
+            if(spinner) spinner.style.display = 'flex';
+          }
+        }
+      }catch(e){/* ignore */}
+
       function open(){
           modal.setAttribute('aria-hidden','false');
         requestAnimationFrame(()=>{
@@ -253,12 +274,19 @@
           try{
             const wrap = modal.querySelector('.embed-wrap');
             if(!wrap) return;
-            const iframe = wrap.querySelector('iframe[data-src]');
+            // prefer any iframe inside; it may currently lack src but should have data-src
+            const iframe = wrap.querySelector('iframe');
             if(!iframe) return;
-            if(iframe.getAttribute('src')) return; // already loaded
-            const spinner = wrap.querySelector('.spinner');
-            const src = iframe.getAttribute('data-src');
+            const src = iframe.getAttribute('data-src') || iframe.getAttribute('src');
             if(!src) return;
+            // if already loaded and has src, don't reload
+            if(iframe.getAttribute('src') === src) return;
+            const spinner = wrap.querySelector('.spinner');
+            // ensure spinner is visible while loading
+            if(spinner) spinner.style.display = 'flex';
+            wrap.classList.add('loading');
+            iframe.style.opacity = '0';
+            // remove any previous load listeners by cloning the node? Instead, add once listener
             iframe.addEventListener('load', ()=>{
               if(spinner) spinner.style.display = 'none';
               iframe.style.opacity = '1';
@@ -283,12 +311,17 @@
             if(!iframe) return;
             // if iframe has a src, remove it so browser can free resources
             if(iframe.getAttribute('src')){
-              iframe.removeAttribute('src');
-              iframe.style.opacity = '0';
-              // show spinner again
+              // replace iframe with a fresh clone that has the same attributes except src
+              const clone = iframe.cloneNode(false);
+              // remove src from clone so it's ready for lazy-load
+              clone.removeAttribute('src');
+              // ensure data-src is preserved (it should be) and opacity reset
+              clone.style.opacity = '0';
               wrap.classList.add('loading');
               const spinner = wrap.querySelector('.spinner');
               if(spinner) spinner.style.display = 'flex';
+              // replace node
+              iframe.parentNode.replaceChild(clone, iframe);
             }
           }catch(e){/* ignore */}
         }, 360);
