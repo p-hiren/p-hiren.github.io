@@ -161,28 +161,222 @@
     requestAnimationFrame(tick);
   })();
 
-  // Contact modal behavior
+  // Contact modal behavior with animation
   (function(){
     const open = document.getElementById('openContact');
     const modal = document.getElementById('contactModal');
     const backdrop = document.getElementById('contactBackdrop');
     const close = document.getElementById('closeContact');
     const copyBtn = document.getElementById('copyEmail');
+    const copyPhoneBtn = document.getElementById('copyPhone');
     const toast = document.getElementById('toast');
     const EMAIL = 'contact.hiren@icloud.com';
+    const PHONE = '+91 9011851158';
     function showToast(msg){
       if(!toast) return;
       toast.textContent = msg; toast.classList.add('show'); toast.setAttribute('aria-hidden','false');
       setTimeout(()=>{ toast.classList.remove('show'); toast.setAttribute('aria-hidden','true'); }, 2200);
     }
-    function openModal(){ if(modal) modal.setAttribute('aria-hidden','false'); }
-    function closeModal(){ if(modal) modal.setAttribute('aria-hidden','true'); }
-    if(open) open.addEventListener('click', openModal);
+
+    function openModal(){
+      if(!modal) return;
+      modal.setAttribute('aria-hidden','false');
+      requestAnimationFrame(()=>{
+        const c = modal.querySelector('.modal-content');
+        if(c) c.classList.add('show');
+        const closeBtn = modal.querySelector('#closeContact');
+        if(closeBtn && typeof closeBtn.focus === 'function') closeBtn.focus();
+      });
+    }
+
+    function closeModal(){
+      if(!modal) return;
+      const c = modal.querySelector('.modal-content');
+      if(c){
+        c.classList.remove('show');
+        setTimeout(()=> modal.setAttribute('aria-hidden','true'), 260);
+      } else {
+        modal.setAttribute('aria-hidden','true');
+      }
+    }
+
+    if(open) open.addEventListener('click', (e)=>{ e.preventDefault && e.preventDefault(); openModal(); });
     if(close) close.addEventListener('click', closeModal);
     if(backdrop) backdrop.addEventListener('click', closeModal);
     if(copyBtn) copyBtn.addEventListener('click', async ()=>{
       try{ await navigator.clipboard.writeText(EMAIL); showToast('Email copied to clipboard'); }
       catch(e){ showToast('Copy failed — ' + EMAIL); }
     });
+    if(copyPhoneBtn) copyPhoneBtn.addEventListener('click', async ()=>{
+      try{ await navigator.clipboard.writeText(PHONE); showToast('Phone copied to clipboard'); }
+      catch(e){ showToast('Copy failed — ' + PHONE); }
+    });
   })();
+
+  // Central modal enhancer for Spotify and Apple (focus trap + ESC)
+  (function(){
+    const configs = [
+      { opener: 'openSpotifyIcon', modal: 'spotifyModal', backdrop: 'spotifyBackdrop', close: 'closeSpotify' },
+      { opener: 'openAppleIcon', modal: 'appleModal', backdrop: 'appleBackdrop', close: 'closeApple' }
+    ];
+
+    function focusableWithin(el){
+      if(!el) return [];
+      return Array.from(el.querySelectorAll('a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'))
+        .filter(e => e.offsetParent !== null);
+    }
+
+  const openerMap = Object.create(null);
+  configs.forEach(cfg => {
+      const opener = document.getElementById(cfg.opener);
+      const modal = document.getElementById(cfg.modal);
+      const backdrop = document.getElementById(cfg.backdrop);
+      const closeBtn = document.getElementById(cfg.close);
+      if(!modal) return;
+
+      function open(){
+          modal.setAttribute('aria-hidden','false');
+        requestAnimationFrame(()=>{
+          const c = modal.querySelector('.modal-content');
+          if(c) c.classList.add('show');
+          const focusables = focusableWithin(modal);
+          const target = focusables.length ? focusables[0] : (closeBtn || c);
+          if(target && typeof target.focus === 'function') target.focus();
+        });
+  // start loading embedded iframe if present
+  try{ if(typeof loadIframe === 'function') loadIframe(); }catch(e){}
+        window.addEventListener('keydown', onKey);
+      }
+
+        // lazy-load iframe inside this modal (if any)
+        function loadIframe(){
+          try{
+            const wrap = modal.querySelector('.embed-wrap');
+            if(!wrap) return;
+            const iframe = wrap.querySelector('iframe[data-src]');
+            if(!iframe) return;
+            if(iframe.getAttribute('src')) return; // already loaded
+            const spinner = wrap.querySelector('.spinner');
+            const src = iframe.getAttribute('data-src');
+            if(!src) return;
+            iframe.addEventListener('load', ()=>{
+              if(spinner) spinner.style.display = 'none';
+              iframe.style.opacity = '1';
+              wrap.classList.remove('loading');
+            }, { once: true });
+            // set src to start loading
+            iframe.setAttribute('src', src);
+          }catch(e){/* ignore */}
+        }
+
+      function close(){
+        const c = modal.querySelector('.modal-content');
+        if(c) c.classList.remove('show');
+        // hide container after animation
+        setTimeout(()=> modal.setAttribute('aria-hidden','true'), 260);
+        // unload iframe after modal is hidden to free memory (small delay to allow transition)
+        setTimeout(()=>{
+          try{
+            const wrap = modal.querySelector('.embed-wrap');
+            if(!wrap) return;
+            const iframe = wrap.querySelector('iframe');
+            if(!iframe) return;
+            // if iframe has a src, remove it so browser can free resources
+            if(iframe.getAttribute('src')){
+              iframe.removeAttribute('src');
+              iframe.style.opacity = '0';
+              // show spinner again
+              wrap.classList.add('loading');
+              const spinner = wrap.querySelector('.spinner');
+              if(spinner) spinner.style.display = 'flex';
+            }
+          }catch(e){/* ignore */}
+        }, 360);
+        window.removeEventListener('keydown', onKey);
+        if(opener && typeof opener.focus === 'function') opener.focus();
+      }
+
+      function onKey(e){
+        if(e.key === 'Escape') return close();
+        if(e.key === 'Tab'){
+          const nodes = focusableWithin(modal);
+          if(nodes.length === 0) return;
+          const first = nodes[0];
+          const last = nodes[nodes.length - 1];
+          if(e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+          else if(!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+        }
+      }
+
+      if(opener) opener.addEventListener('click', (e)=>{ e.preventDefault && e.preventDefault(); open(); });
+      // store open function for delegated fallback
+      openerMap[cfg.opener] = open;
+      if(closeBtn) closeBtn.addEventListener('click', close);
+      if(backdrop) backdrop.addEventListener('click', close);
+    });
+
+    // Delegated fallback: if direct listener didn't attach (or DOM changed), handle clicks
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('#openSpotifyIcon, #openAppleIcon');
+      if(!btn) return;
+      e.preventDefault && e.preventDefault();
+      const fn = openerMap[btn.id];
+      if(typeof fn === 'function') fn();
+    });
+  })();
+})();
+
+// trigger entrance animations after DOM is ready
+if (document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', ()=> document.documentElement.classList.add('is-loaded'));
+} else {
+  document.documentElement.classList.add('is-loaded');
+}
+
+// Load the desktop background video only on larger viewports to avoid mobile data usage
+(function(){
+  function isDesktop(){ return window.matchMedia('(min-width: 761px)').matches; }
+
+  function loadBgVideo(){
+    try{
+      const video = document.getElementById('bgVideo');
+      if(!video) return;
+      const srcEl = video.querySelector('source[data-src]');
+      if(!srcEl) return;
+      if(srcEl.getAttribute('src')) return; // already set
+      const src = srcEl.getAttribute('data-src');
+      if(!src) return;
+      srcEl.setAttribute('src', src);
+      // start loading and try to play when ready
+      video.load();
+      const onCan = function(){ video.play().catch(()=>{}); video.removeEventListener('canplay', onCan); };
+      video.addEventListener('canplay', onCan);
+    }catch(e){/* ignore */}
+  }
+
+  function unloadBgVideo(){
+    try{
+      const video = document.getElementById('bgVideo');
+      if(!video) return;
+      const srcEl = video.querySelector('source');
+      if(!srcEl) return;
+      if(srcEl.getAttribute('src')){
+        srcEl.removeAttribute('src');
+        try{ video.pause(); video.load(); }catch(e){}
+      }
+    }catch(e){/* ignore */}
+  }
+
+  // debounce helper for resize
+  let resizeTimer = null;
+  function onResize(){
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(()=>{
+      if(isDesktop()) loadBgVideo(); else unloadBgVideo();
+    }, 180);
+  }
+
+  // initial decision
+  if(isDesktop()) loadBgVideo();
+  window.addEventListener('resize', onResize, { passive: true });
 })();
